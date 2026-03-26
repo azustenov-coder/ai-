@@ -5,6 +5,31 @@ import { useLocation } from "wouter";
 import { VoiceAssistant } from "@/lib/voiceAssistant";
 import { WEBSITE_INFO } from "@/lib/ai-context";
 
+class CommandQueue {
+  private queue: Array<() => Promise<void>> = [];
+  private isProcessing = false;
+
+  add(task: () => Promise<void>) {
+    this.queue.push(task);
+    if (!this.isProcessing) {
+      this.process();
+    }
+  }
+
+  private async process() {
+    this.isProcessing = true;
+    while (this.queue.length > 0) {
+      const task = this.queue.shift();
+      if (task) {
+        await task();
+      }
+    }
+    this.isProcessing = false;
+  }
+}
+
+const commandQueue = new CommandQueue();
+
 export default function AIAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [isActive, setIsActive] = useState(false);
@@ -13,6 +38,8 @@ export default function AIAssistant() {
   const assistantRef = useRef<VoiceAssistant | null>(null);
 
   useEffect(() => {
+// ... existing AIAssistant effect code starts at line 17 but wait, I must replace exactly from line 8
+// Let's broaden the replace target to encompass `handleCommand` correctly.
     try {
       console.log("AIAssistant Mounting - API Key Check:", !!(import.meta as any).env.VITE_GEMINI_API_KEY);
       assistantRef.current = new VoiceAssistant();
@@ -112,39 +139,65 @@ export default function AIAssistant() {
     if (cmdMatch) {
       const type = cmdMatch[1].toUpperCase();
       const value = cmdMatch[2].trim();
-      console.log(`AI ACTION: ${type} -> ${value}`);
-
-      switch (type) {
-        case "NAVIGATE":
-          setLocation(value);
-          break;
-        case "SCROLL":
-          const el = document.querySelector(value);
-          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-          break;
-        case "UI_EVENT":
-          window.dispatchEvent(new CustomEvent("ai-ui-event", { detail: value }));
-          break;
-        case "SELECT_TEAM":
-          window.dispatchEvent(new CustomEvent("ai-select-team", { detail: value }));
-          break;
-        case "OPEN_SERVICE":
-          window.dispatchEvent(new CustomEvent("ai-open-service", { detail: value }));
-          break;
-        case "PORTFOLIO_TAB":
-          window.dispatchEvent(new CustomEvent("ai-portfolio-tab", { detail: value }));
-          break;
-        case "HELP_ACTION":
-          window.dispatchEvent(new CustomEvent("ai-help-action", { detail: value }));
-          break;
-      }
+      
+      commandQueue.add(async () => {
+        console.log(`AI ACTION EXECUTING: ${type} -> ${value}`);
+        switch (type) {
+          case "NAVIGATE":
+            setLocation(value);
+            // Wait for route transition to render
+            await new Promise(r => setTimeout(r, 800));
+            break;
+            
+          case "SCROLL":
+            // Slight delay before scrolling to guarantee component is mounted
+            await new Promise(r => setTimeout(r, 200));
+            let el = document.querySelector(value);
+            if (!el) {
+               // Retry once if not found
+               await new Promise(r => setTimeout(r, 500));
+               el = document.querySelector(value);
+            }
+            if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+            await new Promise(r => setTimeout(r, 500));
+            break;
+            
+          case "SELECT_TEAM":
+            window.dispatchEvent(new CustomEvent("ai-select-team", { detail: value }));
+            await new Promise(r => setTimeout(r, 800));
+            break;
+            
+          case "UI_EVENT":
+            window.dispatchEvent(new CustomEvent("ai-ui-event", { detail: value }));
+            await new Promise(r => setTimeout(r, 800));
+            break;
+            
+          case "OPEN_SERVICE":
+            window.dispatchEvent(new CustomEvent("ai-open-service", { detail: value }));
+            await new Promise(r => setTimeout(r, 800));
+            break;
+            
+          case "PORTFOLIO_TAB":
+            window.dispatchEvent(new CustomEvent("ai-portfolio-tab", { detail: value }));
+            await new Promise(r => setTimeout(r, 500));
+            break;
+            
+          case "HELP_ACTION":
+            window.dispatchEvent(new CustomEvent("ai-help-action", { detail: value }));
+            await new Promise(r => setTimeout(r, 500));
+            break;
+        }
+      });
       return;
     }
 
     // Fallback for legacy [NAVIGATE: /path]
     const navMatch = command.match(/\[NAVIGATE: ([^\]]+)\]/);
     if (navMatch) {
-      setLocation(navMatch[1].trim());
+      commandQueue.add(async () => {
+        setLocation(navMatch[1].trim());
+        await new Promise(r => setTimeout(r, 800));
+      });
     }
   };
 

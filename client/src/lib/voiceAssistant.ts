@@ -90,7 +90,7 @@ export class VoiceAssistant {
       filter.connect(this.processor);
       this.processor.connect(this.audioContext.destination);
 
-      const modelName = "models/gemini-2.5-flash-native-audio-latest";
+      const modelName = "models/gemini-2.0-flash-exp";
       console.log(`Connecting to: ${modelName} via v1beta`);
 
       await this.audioContext.resume();
@@ -100,7 +100,7 @@ export class VoiceAssistant {
         model: modelName,
         config: {
           systemInstruction: { parts: [{ text: systemInstruction }] },
-          responseModalities: ["AUDIO"] as any
+          responseModalities: ["AUDIO", "TEXT"] as any
         },
         callbacks: {
           onopen: () => {
